@@ -1,0 +1,248 @@
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+#define ROWS 45
+#define COLS 3
+#define LAYERS 15
+#define PARTS_NUM 2025
+#define PARTS_ID_LENGTH 10
+
+// 定义零件的结构体
+typedef struct {
+    char id[PARTS_ID_LENGTH]; // 零件编号
+    int layer; // 零件所在层数
+    int row; // 零件所在行数
+    int col; // 零件所在列数
+} Part;
+
+// 定义零件库存储系统的结构体
+typedef struct {
+   Part parts[PARTS_NUM]; // 存储所有零件的数组
+    int parts_count; // 已存储的零件数量
+    int layers[LAYERS][ROWS][COLS]; // 存储零件位置的三维数组
+} PartsStorageSystem;
+ 
+
+
+// 初始化零件库存储系统
+void init_parts_storage_system(PartsStorageSystem *system) {
+    // 将所有零件位置初始化为0，表示空位置
+   system->parts_count=0;
+for (int i = 0; i < PARTS_NUM; i++) {
+        strcpy(system->parts[i].id, "");
+        system->parts[i].layer = 0;
+        system->parts[i].row = 0;
+        system->parts[i].col = 0;
+    }
+    memset(system->layers, 0, sizeof(system->layers));
+    system->parts_count = 0;
+}
+
+// 将零件存入零件库存储系统
+void store_part(PartsStorageSystem *system, char *part_id) {
+
+ //判断零件编号是否存在
+  for (int i = 0; i <system->parts_count;i++){
+        if (strcmp(system->parts[i].id, part_id) == 0) {
+          printf("该零件编号已存在，请重新输入！\n");
+        return;
+        }
+  }
+      // 如果已经存满了，就无法再存储
+    if (system->parts_count >= PARTS_NUM) {
+        printf("零件库已满，无法再存储！\n");
+        return;
+    }
+
+    // 遍历所有层，从高到低扫描
+    for (int layer = LAYERS - 1; layer >= 0; layer--) {
+        // 遍历该层的所有行
+        for (int row = 0; row < ROWS; row++) {
+            // 遍历该行的所有列
+            for (int col = 0; col < COLS; col++) {
+                // 如果该位置为空，就将零件存储在这里
+                if (system->layers[layer][row][col] == 0) {
+                    // 计算零件所在区域
+                    int area = (system->parts_count % 3) + 1;
+                    // 计算零件所在行数
+                    int center_row = (ROWS / 3) * (area - 1) + (ROWS / 6);
+                    int target_row = center_row;
+                    // 如果中心行已经被占用，就选择中心行两侧的行对称放置
+                    if (system->layers[layer][center_row][col] != 0) {
+                        int distance = 1;
+                        while (1) {
+                            if (center_row - distance >= 0 && system->layers[layer][center_row - distance][col] == 0) {
+                                target_row = center_row - distance;
+                                break;
+                            }
+                            if (center_row + distance < ROWS && system->layers[layer][center_row + distance][col] == 0) {
+                                target_row = center_row + distance;
+                                break;
+                            }
+                            distance++;
+                        }
+                    }
+                    // 计算零件所在列数
+                    int center_col = COLS / 2;
+                    int target_col = center_col;
+                    // 如果中心列已经被占用，就选择中心列两侧的列对称放置
+                    if (system->layers[layer][target_row][center_col] != 0) {
+                        int distance = 1;
+                        while (1) {
+                            if (center_col - distance >= 0 && system->layers[layer][target_row][center_col - distance] == 0) {
+                                target_col = center_col - distance;
+                                break;
+                            }
+                            if (center_col + distance < COLS && system->layers[layer][target_row][center_col + distance] == 0) {
+                                target_col = center_col + distance;
+                                break;
+                            }
+                            distance++;
+                        }
+                    }
+                    // 将零件存储在该位置
+                    system->layers[layer][target_row][target_col] = 1;
+                    // 将零件信息存储在零件数组中
+                    Part part;
+                    strcpy(part.id, part_id);
+                    part.layer = layer + 1;
+                    part.row = target_row + 1;
+                    part.col = target_col + 1;
+                    system->parts[system->parts_count] = part;
+                    system->parts_count++;
+                    printf("零件 %s 存储在第 %d 层，第 %d 行，第 %d 列\n", part_id, part.layer, part.row, part.col);
+                    return;
+                }
+            }
+        }
+    }
+}
+
+// 从零件库存储系统中提取零件
+void extract_part(PartsStorageSystem *system, char *part_id) {
+    // 遍历所有已存储的零件
+    for (int i = 0; i < system->parts_count; i++) {
+        // 如果找到了该零件
+        if (strcmp(system->parts[i].id, part_id) == 0) {
+            // 将该位置清空
+            int layer = system->parts[i].layer - 1;
+            int row = system->parts[i].row - 1;
+            int col = system->parts[i].col - 1;
+            system->layers[layer][row][col] = 0;
+            // 将该零件从零件数组中删除
+            for (int j = i; j < system->parts_count - 1; j++) {
+                system->parts[j] = system->parts[j + 1];
+            }
+            system->parts_count--;
+            printf("零件 %s 已提取\n", part_id);
+            return;
+        }
+    }
+    printf("未找到编号为 %s 的零件\n", part_id);
+}
+
+// 查询零件在零件库存储系统中的位置
+void query_part(PartsStorageSystem *system, char *part_id) {
+    // 遍历所有已存储的零件
+    for (int i = 0; i < system->parts_count; i++) {
+        // 如果找到了该零件
+        if (strcmp(system->parts[i].id, part_id) == 0) {
+            printf("编号为 %s 的零件存储在第 %d 层，第 %d 行，第 %d 列\n", part_id, system->parts[i].layer, system->parts[i].row, system->parts[i].col);
+            return;
+        }
+    }
+    printf("未找到编号为 %s 的零件\n", part_id);
+}
+
+// 查询所有已存储的零件
+void query_all_parts(PartsStorageSystem *system) {
+    printf("已存储的零件如下：\n");
+    for (int i = 0; i < system->parts_count; i++) {
+        printf("%s：第 %d 层，第 %d 行，第 %d 列\n", system->parts[i].id, system->parts[i].layer, system->parts[i].row, system->parts[i].col);
+    }
+}
+// 清空库存
+void clearInventory(PartsStorageSystem *system) {
+    // 初始化零件库存储数组
+   // PartsStorageSystem system;
+   // init_parts_storage_system(&system);
+// 遍历整个库存储数组
+   for (int i = 0; i < LAYERS; i++) {
+        for (int j = 0; j < ROWS; j++) {
+            for (int k = 0; k < COLS; k++) {
+                // 将每个位置的零件编号设置为空字符串
+                system->layers[i][j][k] = 0;
+            }
+        }
+    }
+    for (int i = 0; i < PARTS_NUM; i++) {
+        // 将每个位置的零件编号设置为空字符串
+        strcpy(system->parts[i].id, "");
+    } 
+    // 更新零件数量
+    system->parts_count = 0;
+
+    // 清空成功，退出函数
+    printf("零件库存储已清空！\n");
+}
+
+
+int main() {
+    PartsStorageSystem system;
+    init_parts_storage_system(&system);
+
+    while (1) {
+        printf("请选择功能：\n");
+        printf("1. 存储零件\n");
+        printf("2. 提取零件\n");
+        printf("3. 查询零件\n");
+        printf("4. 查询库存\n");
+        printf("5. 清空库存\n");
+        printf("6. 退出\n");
+        int choice;
+        scanf("%d", &choice);
+        switch (choice) {
+            case 1: {
+                printf("请输入零件编号：\n");
+                char part_id[PARTS_ID_LENGTH];
+                scanf("%s", part_id);
+                store_part(&system, part_id);
+                break;
+            }
+            case 2: {
+                printf("请输入零件编号：\n");
+                char part_id[PARTS_ID_LENGTH];
+                scanf("%s", part_id);
+                extract_part(&system, part_id);
+                break;
+            }
+            case 3: {
+                printf("请输入零件编号：\n");
+                char part_id[PARTS_ID_LENGTH];
+                scanf("%s", part_id);
+                query_part(&system, part_id);
+                break;
+            }
+            case 4: {
+                query_all_parts(&system);
+                break;
+            }
+            case 5: {
+                // 清空库存
+                clearInventory(&system);
+
+                break;
+            }
+            case 6: {
+                // 退出系统
+                printf("感谢使用零件库存储系统，再见！\n");
+                return 0;
+            }
+            default: {
+                printf("无效的选择，请重新输入！\n");
+                break;
+            }
+        }
+    }
+}
